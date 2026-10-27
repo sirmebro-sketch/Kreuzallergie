@@ -6,7 +6,7 @@
  const STORE='beifusskompass.v1';
  const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
  function normal(s){return String(s||'').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();}
- function blank(){return {schema:1,profile:{groups:[...restrictive],pepper:true,ack:false,theme:'system'},custom:[],rules:{},favorites:[],journal:[]};}
+ function blank(){return {schema:2,profile:{groups:[],ruleOrigin:'personal',ack:false,theme:'system'},custom:[],rules:{},favorites:[],journal:[]};}
  function allFoods(catalog,state){return [...catalog.foods,...state.custom];}
  function observation(state,id,prep){return state.rules[id]?.[prep]||null;}
  function assessment(food,prep,state,catalog,seen=new Set()){
@@ -16,8 +16,8 @@
   if(medicalBlock)return {level:'avoid',label:'Ärztlich zu meiden',reason:medicalBlock.note||'Als ärztliches Verbot erfasst.',source:'personal'};
   if([exact,global].some(x=>x?.status==='avoid'))return {level:'avoid',label:'Als unverträglich erfasst',reason:exact?.note||global?.note||'Eigene Unverträglichkeit dokumentiert.',source:'personal'};
   const medicalAllow=exact?.status==='allow-medical';
-  const groupBlocked=state.profile.groups.includes(food.group),pepperBlocked=food.id==='pfeffer'&&state.profile.pepper;
-  if((groupBlocked||pepperBlocked)&&!medicalAllow)return {level:'avoid',label:pepperBlocked?'Pfeffer ärztlich ausgeschlossen':'Laut geschilderter Vorgabe meiden',reason:(pepperBlocked?'Ausdrücklich berichtetes Pfefferverbot.':'Die berichtete Gruppenangabe umfasst '+catalog.groups[food.group]+'.')+(exact?.status==='tolerated'?' Eine dokumentierte Verträglichkeit hebt diese Vorgabe nicht auf.':''),source:'reported'};
+  const groupBlocked=state.profile.groups.includes(food.group);
+  if(groupBlocked&&!medicalAllow)return {level:'avoid',label:'Persönlich hinterlegte Gruppenregel',reason:'In deinem Profil ist '+catalog.groups[food.group]+' zusätzlich ausgeschlossen. Das ist keine wissenschaftliche Standardbewertung.'+(exact?.status==='tolerated'?' Eine Verträglichkeitsbeobachtung hebt diese persönliche Regel nicht auf.':''),source:'personal-group'};
   if(medicalAllow)return {level:'medical',label:'Als ärztlich geeignet erfasst',reason:'Gilt nur für die gewählte Zubereitung und den dokumentierten Einzelfall. '+(exact.note||''),source:'personal'};
   if(food.custom&&food.label&&!seen.has(food.id)){
    const next=new Set(seen);next.add(food.id);const scan=scanLabel(food.label,catalog,state,prep,false,next);
@@ -32,16 +32,20 @@
   }
   if(food.kind==='dish')return {level:'caution',label:'Rezeptur prüfen',reason:'Beispielgericht mit möglichen Zutaten. Ohne aktuelle konkrete Zutatenliste keine verlässliche Produktbewertung.'};
   if(food.custom&&food.label)return {level:'unknown',label:'Eigener Eintrag – Zutaten prüfen',reason:'Gespeicherte persönliche Rezeptur. Zutatencheck öffnen; Angaben sind nicht extern validiert.'};
-  if(food.association==='mugwort')return {level:'caution',label:'Beifuß-Kreuzreaktion möglich',reason:'Möglicher Zusammenhang, keine nachgewiesene persönliche Lebensmittelallergie. Keine Selbsttests nach schweren Reaktionen.'};
-  if(food.association==='other')return {level:'caution',label:'Anderer Pollenbezug möglich',reason:'Weitere berichtete Pollenallergien können relevant sein; individueller Befund fehlt.'};
-  return {level:'unknown',label:'Persönlich noch ungeklärt',reason:'Kein typischer Beifuß-Bezug erfasst. Das bedeutet nicht automatisch verträglich oder unbedenklich.'};
+  return scientificAssessment(food);
+ }
+ function scientificAssessment(food){
+  if(!food)return {level:'unknown',label:'Daten fehlen',reason:'Keine wissenschaftliche Einordnung vorhanden.',source:'science'};
+  if(food.custom)return {level:'unknown',label:'Eigener Inhalt – keine Studienzuordnung',reason:'Persönliche Produktangaben sind keine wissenschaftlich geprüfte Lebensmittelbewertung. Zutaten gesondert prüfen.',source:'science'};
+  if(food.kind==='dish')return {level:'caution',label:'Rezeptur prüfen',reason:'Der Gerichtname belegt keine konkrete Zutatenliste.',source:'science'};
+  if(food.evidence)return {level:'caution',label:food.evidence.kind==='clinical'?'Beifuß-Assoziation klinisch beschrieben':food.evidence.kind==='laboratory'?'Begrenzte Evidenz: Sensibilisierung':food.evidence.kind==='case'?'Beifuß-Bezug in Einzelfällen':food.evidence.kind==='regional'?'Beifuß-Bezug: regionale Kohorte':'Beifuß-Bezug in Fachübersicht',reason:food.evidence.summary+' '+food.evidence.limit+' Kein pauschales Meidegebot allein daraus.',source:'science'};
+  return {level:'unknown',label:'Kein pauschaler Verzicht begründet',reason:'Aus Beifuß-Kreuzallergie oder Neurodermitis allein lässt sich für dieses Lebensmittel kein generelles Meiden ableiten. Eine individuelle Verträglichkeit ist damit nicht bewiesen.',source:'science'};
  }
  function heatInfo(food,prep){
-  if(prep==='raw')return 'Roh gelten die persönliche Einordnung und berichteten Verbote. Keine neuen Verträglichkeitstests aus der App ableiten.';
-  if(food.heat==='stable')return 'Erhitzen bietet hier keinen zuverlässigen Schutz. Auch gekocht, gebacken oder verarbeitet können relevante Allergene verbleiben.';
-  if(food.heat==='birch')return 'Bei manchen typischen Birkenkreuzallergien wird ausreichend erhitztes Obst besser vertragen. Das gilt nicht für alle Allergieformen und hebt persönliche Verbote nicht auf.';
-  if(food.heat==='sometimes')return 'Bestimmte Verarbeitungen können die Verträglichkeit verändern. Ohne konkretes Allergenprofil keine persönliche Freigabe.';
-  return 'Für diese Verarbeitung ist seine Verträglichkeit nicht vorhersagbar. Kochen, Rösten oder Fermentieren hebt ein ärztliches Verbot nicht auf.';
+  if(prep==='raw')return 'Die Studienlage belegt keine allgemeine Rohkost-Sperre bei Beifuß-Kreuzallergie oder Neurodermitis. Bei klinisch bestätigter Allergie ist die individuell auslösende Form zu meiden.';
+  if(food.evidence?.processing)return food.evidence.processing;
+  if(food.heat==='birch')return 'Bessere Verträglichkeit durch Erhitzen ist vor allem bei manchen Birken-/PR-10-Reaktionen beschrieben. Daraus folgt keine Empfehlung für Beifuß-Kreuzallergie. Persönliche Verarbeitungstoleranz bleibt individuell.';
+  return 'Für diese Verarbeitung liegt hier kein spezifischer klinischer Beifuß-Nachweis vor. Weder ein allgemeines Verbot noch eine sichere Verträglichkeit lässt sich daraus ableiten. Bei bestätigter Lebensmittelallergie ist Erhitzen kein pauschaler Schutz.';
  }
  function distance(a,b){let prev=Array.from({length:b.length+1},(_,i)=>i);for(let i=0;i<a.length;i++){const row=[i+1];for(let j=0;j<b.length;j++)row.push(Math.min(row[j]+1,prev[j+1]+1,prev[j]+(a[i]===b[j]?0:1)));prev=row;}return prev[b.length];}
  function search(foods,query){
@@ -87,14 +91,18 @@
   if(!/^[a-z][a-z0-9-]{1,30}$/.test(input.group||''))throw Error('Ungültige Lebensmittelgruppe.');
   return {id:input.id||'custom-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8),name:input.name.trim(),group:input.group,aliases:(input.aliases||[]).filter(x=>typeof x==='string').slice(0,20).map(x=>x.trim().slice(0,80)).filter(Boolean),kind:'food',custom:true,association:'none',heat:'unclear',sources:[],note:String(input.note||'').slice(0,2000),label:String(input.label||'').slice(0,12000),brand:String(input.brand||'').slice(0,100),alternatives:[],createdAt:new Date().toISOString()};
  }
- function serialize(state){return JSON.stringify({format:'beifusskompass-backup',version:1,exportedAt:new Date().toISOString(),state},null,2);}
+ function serialize(state){return JSON.stringify({format:'beifusskompass-backup',version:2,exportedAt:new Date().toISOString(),state},null,2);}
  function validateBackup(json,catalog){
   if(typeof json!=='string'||new TextEncoder().encode(json).length>2*1024*1024)throw Error('Datei zu groß oder ungültig.');
-  const b=JSON.parse(json);if(b.format!=='beifusskompass-backup'||b.version!==1||!b.state)throw Error('Keine unterstützte BeifußKompass-Sicherung.');
+  const b=JSON.parse(json);if(b.format!=='beifusskompass-backup'||![1,2].includes(b.version)||!b.state)throw Error('Keine unterstützte BeifußKompass-Sicherung.');
   const s=b.state,out=blank();
-  if(s.schema!==1||!Array.isArray(s.custom)||s.custom.length>500||!s.profile||!Array.isArray(s.profile.groups)||typeof s.profile.pepper!=='boolean')throw Error('Ungültiges Datenformat.');
+  if(![1,2].includes(s.schema)||s.schema!==b.version||!Array.isArray(s.custom)||s.custom.length>500||!s.profile||!Array.isArray(s.profile.groups)||(s.schema===1&&typeof s.profile.pepper!=='boolean'))throw Error('Ungültiges Datenformat.');
   if(s.profile.groups.some(g=>!restrictive.includes(g)))throw Error('Unbekannte Gruppenregel.');
-  out.profile={groups:[...new Set(s.profile.groups)],pepper:s.profile.pepper,ack:s.profile.ack===true,theme:['system','light','dark'].includes(s.profile.theme)?s.profile.theme:'system'};
+  out.profile={groups:s.schema===1?[]:[...new Set(s.profile.groups)],ruleOrigin:'personal',ack:s.profile.ack===true,theme:['system','light','dark'].includes(s.profile.theme)?s.profile.theme:'system'};
+  // v1 mixed conversation-seeded profile defaults with actual personal records.
+  // Archive those legacy profile flags without applying them; retain real per-food records.
+  if(s.schema===1)out.migration={fromSchema:1,removedPrefills:true,previousGroups:[...s.profile.groups],previousPepper:s.profile.pepper};
+  else if(s.migration?.fromSchema===1)out.migration={fromSchema:1,removedPrefills:true,previousGroups:Array.isArray(s.migration.previousGroups)?s.migration.previousGroups.filter(g=>restrictive.includes(g)):[],previousPepper:s.migration.previousPepper===true};
   const ids=new Set(catalog.foods.map(f=>f.id));
   for(const f of s.custom){if(!/^custom-[a-z0-9-]{4,80}$/.test(f.id)||ids.has(f.id)||!own(catalog.groups,f.group))throw Error('Ungültiger oder doppelter eigener Eintrag.');const clean=customFood(f);clean.id=f.id;ids.add(f.id);out.custom.push(clean);}
   if(!s.rules||typeof s.rules!=='object'||Array.isArray(s.rules)||Object.keys(s.rules).length>2000)throw Error('Ungültige Markierungen.');
@@ -110,6 +118,6 @@
   out.journal=s.journal.map(j=>({id:String(j.id||'').slice(0,80),food:String(j.food||'').slice(0,150),prep:prepKeys.includes(j.prep)?j.prep:'cooked',date:String(j.date||'').slice(0,40),note:String(j.note||'').slice(0,2000)}));
   return out;
  }
- const api={STORE,restrictive,statuses,prepKeys,blank,normal,allFoods,assessment,observation,heatInfo,search,scanLabel,customFood,serialize,validateBackup};
+ const api={STORE,restrictive,statuses,prepKeys,blank,normal,allFoods,assessment,scientificAssessment,observation,heatInfo,search,scanLabel,customFood,serialize,validateBackup};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FoodEngine=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

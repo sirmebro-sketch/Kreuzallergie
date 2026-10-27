@@ -43,12 +43,12 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon :app:assembleDebug :app:lintDebug
       - name: Installationsdatei benennen
-        run: cp app/build/outputs/apk/debug/app-debug.apk BeifussKompass-1.0.0.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk BeifussKompass-1.1.0.apk
       - name: APK bereitstellen
         uses: actions/upload-artifact@v4
         with:
           name: BeifussKompass-Android-APK
-          path: BeifussKompass-1.0.0.apk
+          path: BeifussKompass-1.1.0.apk
           retention-days: 90
       - name: Lint-Bericht bereitstellen
         if: always()
