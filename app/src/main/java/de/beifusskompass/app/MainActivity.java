@@ -1,6 +1,5 @@
 package de.beifusskompass.app;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
@@ -17,6 +16,8 @@ import android.webkit.WebChromeClient;
 import android.view.WindowInsets;
 import android.widget.Toast;
 import androidx.webkit.WebViewAssetLoader;
+import androidx.activity.ComponentActivity;
+import androidx.activity.OnBackPressedCallback;
 import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -28,7 +29,7 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 
 /** Offline shell. No INTERNET permission, no remote content, narrow document bridge. */
-public final class MainActivity extends Activity {
+public final class MainActivity extends ComponentActivity {
     private static final int EXPORT = 41, IMPORT = 42, LIMIT = 2 * 1024 * 1024;
     private static final String ORIGIN = "https://appassets.androidplatform.net/assets/";
     private WebView web;
@@ -79,8 +80,9 @@ public final class MainActivity extends Activity {
             }
         });
         web.addJavascriptInterface(new Documents(),"AndroidDocuments");
-        if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-            android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,this::handleBack);
+        getOnBackPressedDispatcher().addCallback(this,new OnBackPressedCallback(true) {
+            @Override public void handleOnBackPressed() { handleBack(); }
+        });
         if (saved == null || web.restoreState(saved) == null) web.loadUrl(ORIGIN+"index.html");
     }
     @Override protected void onSaveInstanceState(Bundle out) {
@@ -140,9 +142,6 @@ public final class MainActivity extends Activity {
                 if(trusted()) web.evaluateJavascript("window.receiveBackup("+JSONObject.quote(json)+")",null);
             }
         } catch(Exception e) { pendingExport.delete();toast("Datei konnte nicht verarbeitet werden. Vorhandene Daten bleiben erhalten."); }
-    }
-    @Override public void onBackPressed() {
-        handleBack();
     }
     private void handleBack() {
         web.evaluateJavascript("window.appBack ? window.appBack() : false",handled -> {

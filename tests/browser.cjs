@@ -17,7 +17,7 @@ const types={'.html':'text/html','.css':'text/css','.js':'text/javascript'};
   await page.locator('#search').fill('Pfeffer');await page.locator('[data-open="pfeffer"]').first().click();await page.locator('#observation-status').selectOption('tolerated');await page.locator('#observation-form button[type="submit"]').click();assert.match(await page.locator('#detail-content').innerText(),/Pfeffer ärztlich ausgeschlossen/);await page.locator('#detail-dialog [data-close]').click();
   fs.mkdirSync('test-results',{recursive:true});
   for(const theme of ['light','dark']){
-   await page.locator('#open-profile').click();await page.locator('#theme').selectOption(theme);await page.locator('#save-profile').click();await page.locator('#clear-search').click();
+   await page.locator('#open-profile').click();await page.locator('#theme').selectOption(theme);await page.locator('#save-profile').click();await page.locator('#search').fill('');
    for(const width of [320,390,1024]){await page.setViewportSize({width,height:900});const over=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);assert.equal(over,false,'Horizontal overflow '+theme+' '+width);await page.screenshot({path:`test-results/${theme}-${width}.png`,fullPage:true});}
   }
   await page.setViewportSize({width:390,height:844});await page.locator('#search').fill('Sellerie');await page.locator('[data-open="sellerie"]').first().click();await page.screenshot({path:'test-results/detail-mobile.png',fullPage:true});

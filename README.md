@@ -57,7 +57,7 @@ Eine Browseransicht für Entwicklung lässt sich mit `npm run serve` unter `http
 Für die Oberflächenprüfung:
 
 ```sh
-npm install --no-save --package-lock=false playwright@1.51.1
+npm install --no-save --package-lock=false playwright@1.58.2
 npx playwright install chromium --only-shell
 npm run test:ui
 ```
