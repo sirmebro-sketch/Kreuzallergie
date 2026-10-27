@@ -7,7 +7,7 @@ const types={'.html':'text/html','.css':'text/css','.js':'text/javascript'};
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+server.address().port;
  let browser;
  try{
-  browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_BROWSER_CHANNEL?{channel:process.env.PLAYWRIGHT_BROWSER_CHANNEL}:{})});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
   await page.goto(url);await page.locator('#welcome-done').click();
   await page.locator('#search').fill('Chicken Nuggets');assert.match(await page.locator('#results').innerText(),/Chicken Nuggets/);await page.locator('[data-open="nuggets"]').first().click();assert.match(await page.locator('#detail-content').innerText(),/Rezeptur prüfen/);assert.match(await page.locator('#detail-content').innerText(),/Mögliche Zutaten/);await page.locator('#detail-dialog [data-close]').click();
   await page.locator('.bottom-nav a[href="#check"]').click();await page.locator('#ingredient-text').fill('Hähnchenfleisch, Weizenmehl, Pfeffer, Salz. Kann Spuren von Senf enthalten.');await page.locator('#complete-label').check();await page.locator('#analyze').click();assert.match(await page.locator('#check-result').innerText(),/Vorsicht – offene Fragen/);assert.match(await page.locator('#check-result').innerText(),/Mögliche Spuren/);

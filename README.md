@@ -70,6 +70,8 @@ npm run test:ui
 
 Die CI prüft Bewertungsprioritäten, Quell-/Referenzintegrität, Suchbegriffe, Zutaten- und Spurenlogik, Sicherungsvalidierung, Bedienabläufe und kleine/große Displays in Hell/Dunkel. Die native APK wird gebaut, durch Android Lint geprüft und in einem Android-15-Emulator installiert und gestartet. Diese Prüfungen ersetzen keine medizinische Inhaltsvalidierung oder einen Test auf jedem physischen Android-Gerät.
 
+Die CI-Oberflächenprüfung verwendet den auf dem Ubuntu-24.04-Runner vorinstallierten Google Chrome über `PLAYWRIGHT_BROWSER_CHANNEL=chrome`; ein separater Browser-/Systempaketdownload ist dafür nicht nötig.
+
 ## Aufbau
 
 - `catalog.js`: Lebensmittel, Aliasbegriffe, Beispielgerichte und Hintergrundquellen.
