@@ -58,6 +58,16 @@ test('traces are distinct from confirmed ingredients',()=>{
 test('a real ingredient before traces is never downgraded to a trace',()=>{
  const r=E.scanLabel('Hähnchen, Senf. Kann Spuren von Sellerie enthalten.',C,E.blank(),'cooked',true);assert(r.blocked.some(x=>x.id==='senf'));assert(r.traces.some(x=>x.id==='sellerie'));
 });
+test('contains-style precautionary labels remain traces without the word Spuren',()=>{
+ const r=E.scanLabel('Reis, Salz. Kann Milch, Senf und Sellerie enthalten.',C,E.blank(),'cooked',true);assert(!r.blocked.length);assert(r.traces.some(x=>x.id==='senf'));assert.equal(r.level,'caution');
+});
+test('longer trace alias cannot hide a confirmed shorter ingredient',()=>{
+ const r=E.scanLabel('Pfeffer. Kann Spuren von schwarzem Pfeffer enthalten.',C,E.blank(),'cooked',true);assert(r.blocked.some(x=>x.id==='pfeffer'));
+});
+test('hyphenated pepper extracts and vague seasoning salts are flagged',()=>{
+ assert(E.scanLabel('Pfeffer-Extrakt',C,E.blank(),'cooked',true).blocked.some(x=>x.id==='pfeffer'));
+ for(const s of ['Gewürzsalz','Kräutersalz','Gewürzaroma'])assert(E.scanLabel(s,C,E.blank(),'cooked',true).vague.length);
+});
 test('zero matches and missing data never produce an unbedenklich verdict',()=>{
  for(const text of ['','unbekannte Zutat','Wasser, Reis']){const r=E.scanLabel(text,C,E.blank(),'cooked',true);assert.equal(r.level,'unknown');assert(!/unbedenklich|sicher geeignet/i.test(r.label));}
  assert.equal(E.scanLabel('Reis',C,E.blank()).label,'Zutatenangaben unvollständig');
@@ -67,6 +77,12 @@ test('label scan finds own added ingredient and personal avoid rule',()=>{
 });
 test('excluded seed derivatives do not become safe by changing category',()=>{
  assert.equal(E.assessment(get('sonnenblumenoel'),'cooked',E.blank(),C).level,'caution');
+});
+test('custom product tolerance cannot bypass a known forbidden ingredient',()=>{
+ const s=E.blank(),f=E.customFood({name:'Gewürztes Hähnchenprodukt',group:'prepared',label:'Hähnchen, Pfeffer, Salz'});s.custom.push(f);rule(s,f.id,'cooked','tolerated');assert.equal(E.assessment(f,'cooked',s,C).level,'avoid');
+});
+test('self-referencing custom recipe does not cause recursive evaluation',()=>{
+ const s=E.blank(),f=E.customFood({name:'Mein Produkt',group:'prepared',label:'Mein Produkt, Reis'});s.custom.push(f);assert.doesNotThrow(()=>E.assessment(f,'cooked',s,C));assert.doesNotThrow(()=>E.scanLabel('Mein Produkt',C,s));
 });
 test('complete valid backup round trip preserves custom entries, notes and rules',()=>{
  const s=E.blank();const f=E.customFood({name:'Eigenes Produkt',group:'prepared',label:'Reis, Salz'});s.custom.push(f);rule(s,f.id,'cooked','tolerated');s.favorites.push(f.id);const out=E.validateBackup(E.serialize(s),C);assert.equal(out.custom[0].name,f.name);assert.equal(out.rules[f.id].cooked.status,'tolerated');assert.deepEqual(out.favorites,s.favorites);

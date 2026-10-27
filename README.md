@@ -62,7 +62,7 @@ npx playwright install chromium --only-shell
 npm run test:ui
 ```
 
-Die CI prüft Bewertungsprioritäten, Quell-/Referenzintegrität, Suchbegriffe, Zutaten- und Spurenlogik, Sicherungsvalidierung, Bedienabläufe und kleine/große Displays in Hell/Dunkel. Die native APK wird gebaut und durch Android Lint geprüft. Diese Prüfungen ersetzen keine medizinische Inhaltsvalidierung oder einen Test auf jedem physischen Android-Gerät.
+Die CI prüft Bewertungsprioritäten, Quell-/Referenzintegrität, Suchbegriffe, Zutaten- und Spurenlogik, Sicherungsvalidierung, Bedienabläufe und kleine/große Displays in Hell/Dunkel. Die native APK wird gebaut, durch Android Lint geprüft und in einem Android-15-Emulator installiert und gestartet. Diese Prüfungen ersetzen keine medizinische Inhaltsvalidierung oder einen Test auf jedem physischen Android-Gerät.
 
 ## Aufbau
 

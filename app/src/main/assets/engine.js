@@ -19,6 +19,11 @@
   const groupBlocked=state.profile.groups.includes(food.group),pepperBlocked=food.id==='pfeffer'&&state.profile.pepper;
   if((groupBlocked||pepperBlocked)&&!medicalAllow)return {level:'avoid',label:pepperBlocked?'Pfeffer ärztlich ausgeschlossen':'Laut geschilderter Vorgabe meiden',reason:(pepperBlocked?'Ausdrücklich berichtetes Pfefferverbot.':'Die berichtete Gruppenangabe umfasst '+catalog.groups[food.group]+'.')+(exact?.status==='tolerated'?' Eine dokumentierte Verträglichkeit hebt diese Vorgabe nicht auf.':''),source:'reported'};
   if(medicalAllow)return {level:'medical',label:'Als ärztlich geeignet erfasst',reason:'Gilt nur für die gewählte Zubereitung und den dokumentierten Einzelfall. '+(exact.note||''),source:'personal'};
+  if(food.custom&&food.label&&!seen.has(food.id)){
+   const next=new Set(seen);next.add(food.id);const scan=scanLabel(food.label,catalog,state,prep,false,next);
+   if(scan.blocked.length)return {level:'avoid',label:'Eigene Rezeptur enthält zu meidende Zutaten',reason:scan.blocked.map(x=>x.name).join(', ')+'. Eine bisherige Verträglichkeit hebt diese Zutatenkonflikte nicht auf.',source:'personal-label'};
+   if(scan.level==='caution')return {level:'caution',label:'Eigene Rezeptur: offene Zutatenfragen',reason:'Sammelbegriffe, mögliche Spuren oder Kreuzreaktionen sind im Zutatencheck näher erläutert.',source:'personal-label'};
+  }
   if(exact?.status==='tolerated')return {level:'tolerated',label:'Bisher vertragen',reason:'Persönliche Beobachtung für diese Zubereitung; keine allgemeine Sicherheitsgarantie. '+(exact.note||''),source:'personal'};
   if(food.derivedFrom&&!seen.has(food.id)){
    const next=new Set(seen);next.add(food.id);const base=allFoods(catalog,state).find(x=>x.id===food.derivedFrom);
@@ -48,9 +53,9 @@
    return {f,score};}).filter(x=>x.score).sort((a,b)=>b.score-a.score||a.f.name.localeCompare(b.f.name,'de')).map(x=>x.f);
  }
  const escaped=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
- function scanLabel(text,catalog,state,prep='cooked',complete=false){
-  text=String(text||'').slice(0,30000);const norm=normal(text);const normalizedOriginal=String(text).toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
-  const foods=allFoods(catalog,state).filter(f=>f.kind!=='dish');const found=[],negated=[];
+ function scanLabel(text,catalog,state,prep='cooked',complete=false,seen=new Set()){
+  text=String(text||'').slice(0,30000);const norm=normal(text);const normalizedOriginal=String(text).toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/[-‐‑–]/g,' ');
+  const foods=allFoods(catalog,state).filter(f=>f.kind!=='dish'&&!seen.has(f.id));const found=[],negated=[];
   for(const food of foods){
    const terms=[food.name,food.name.split(/[/:]/)[0].trim(),...(food.aliases||[])].map(normal).filter(Boolean).sort((a,b)=>b.length-a.length);let hit;
    for(const term of [...new Set(terms)]){
@@ -59,15 +64,15 @@
      const pos=m.index+m[1].length,prefix=normalizedOriginal.slice(Math.max(0,pos-60),pos);
      if(/(?:ohne|frei von|kein|keine|keinen)\s*$/.test(prefix)||/frei\b/.test(normalizedOriginal.slice(pos+term.length,pos+term.length+4))){negated.push({id:food.id,name:food.name,term});continue;}
      const segment=normalizedOriginal.slice(0,pos).split(/[.\n;]/).pop();
-     const trace=/(?:kann\s+(?:spuren\s+von|enthalten)|may contain|spuren von|traces of)/.test(segment);
-     const candidate={id:food.id,name:food.name,term,trace,...assessment(food,prep,state,catalog)};
+     const trace=/(?:\bkann\b|may contain|spuren von|traces of)/.test(segment);
+     const candidate={id:food.id,name:food.name,term,trace,...assessment(food,prep,state,catalog,seen)};
      if(!hit || !trace)hit=candidate;
      if(!trace)break;
     }if(hit&&!hit.trace)break;
    }if(hit)found.push(hit);
   }
   const vague=[];
-  for(const [re,label]of [[/\bgewuerz(?:e|mischung|mischungen|extrakt|extrakte|zubereitung|zubereitungen)?\b/,'Gewürze / Gewürzextrakte'],[/\bkraeuter(?:mischung|extrakt)?\b/,'Kräuter / Kräutermischung'],[/\baroma(?:s|stoffe)?\b/,'Aroma – genaue Zusammensetzung offen'],[/\bwuerze\b/,'Würze – Zusammensetzung prüfen']])if(re.test(norm))vague.push(label);
+  for(const [re,label]of [[/\bgewuerz(?:e|mischung|mischungen|extrakt|extrakte|zubereitung|zubereitungen|salz|aroma|aromen)?\b/,'Gewürze / Gewürzextrakte'],[/\bkraeuter(?:mischung|extrakt|salz)?\b/,'Kräuter / Kräutermischung'],[/\baroma(?:s|stoffe)?\b/,'Aroma – genaue Zusammensetzung offen'],[/\bwuerze\b/,'Würze – Zusammensetzung prüfen']])if(re.test(norm))vague.push(label);
   const contains=found.filter(x=>!x.trace),traces=found.filter(x=>x.trace),blocked=contains.filter(x=>x.level==='avoid');
   const allergyTraces=traces.filter(x=>['avoid','caution'].includes(x.level));
   let level='unknown',label='Keine erfassten Konflikte gefunden';
